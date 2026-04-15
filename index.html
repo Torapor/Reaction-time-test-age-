@@ -7,164 +7,171 @@
   <title>Reaction Time Test</title>
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0f172a;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      background: linear-gradient(135deg, #020617, #020617);
       color: #e5e7eb;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
+      height: 100vh;
       margin: 0;
     }
+
     .card {
       background: #020617;
-      padding: 24px;
-      border-radius: 16px;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      padding: 28px;
+      border-radius: 18px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+      text-align: center;
     }
-    h1 { font-size: 1.4rem; margin-bottom: 12px; }
-    p { font-size: 0.95rem; line-height: 1.4; }
+
+    h1 { margin-top: 0; }
+    p { font-size: 0.95rem; }
+
     input, button {
       width: 100%;
       padding: 12px;
-      margin-top: 10px;
+      margin-top: 12px;
       border-radius: 10px;
       border: none;
       font-size: 1rem;
     }
-    input { background: #020617; color: #e5e7eb; border: 1px solid #1e293b; }
-    button {
-      background: #2563eb;
-      color: white;
+
+    input { background:#020617; color:#e5e7eb; border:1px solid #1e293b; }
+    button { background:#2563eb; color:white; cursor:pointer; }
+    button:disabled { background:#334155; cursor:not-allowed; }
+
+    .zone {
+      margin-top: 20px;
+      height: 160px;
+      border-radius: 14px;
+      background: #334155; /* gray */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: bold;
       cursor: pointer;
-    }
-    button:disabled { background: #334155; cursor: not-allowed; }
-    .box {
-      margin-top: 16px;
-      padding: 30px;
-      text-align: center;
-      border-radius: 12px;
-      background: #020617;
-      border: 2px dashed #1e293b;
       user-select: none;
+      transition: background 0.2s, box-shadow 0.2s;
+      box-shadow: inset 0 0 0 4px #1e293b;
     }
-    .green { background: #16a34a; color: #020617; font-weight: bold; }
-    .results { margin-top: 16px; }
+
+    .zone.green {
+      background: #22c55e;
+      color: #020617;
+      box-shadow: 0 0 30px #22c55e;
+    }
+
+    .zone.locked { cursor: not-allowed; }
+
+    .msg { margin-top: 14px; font-size: 0.95rem; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Reaction Time Test</h1>
-    <p>Enter your age. When the box turns green, click as fast as possible. You will do this <b>3 times</b>.</p>
+    <p>You get <b>one attempt only</b>. Click the gray box when it turns green. 
+       If you click too early, the test fails.</p>
 
-    <input id="ageInput" type="number" min="1" max="120" placeholder="Your age" />
-    <button id="startBtn">Start test</button>
+    <input id="age" type="number" min="1" max="120" placeholder="Enter your age" />
+    <button id="start">Start test</button>
 
-    <div id="testBox" class="box">Wait…</div>
-    <div id="results" class="results"></div>
+    <div id="zone" class="zone locked">Click here</div>
+    <div id="msg" class="msg"></div>
   </div>
 
-  <script>
-    const startBtn = document.getElementById('startBtn');
-    const box = document.getElementById('testBox');
-    const resultsDiv = document.getElementById('results');
-    const ageInput = document.getElementById('ageInput');
+<script>
+const startBtn = document.getElementById('start');
+const zone = document.getElementById('zone');
+const msg = document.getElementById('msg');
+const ageInput = document.getElementById('age');
 
-    let trial = 0;
-    let times = [];
-    let startTime = 0;
-    let waiting = false;
+let attemptUsed = localStorage.getItem('reaction_attempt_used');
+let times = [];
+let trial = 0;
+let waiting = false;
+let startTime = 0;
+let failed = false;
 
-    function ageGroup(age) {
-      if (age < 10) return 'Under 10';
-      if (age < 15) return '10–14';
-      if (age < 20) return '15–19';
-      if (age < 30) return '20–29';
-      if (age < 40) return '30–39';
-      if (age < 50) return '40–49';
-      if (age < 60) return '50–59';
-      return '60+';
-    }
+if (attemptUsed) {
+  msg.innerHTML = "❌ You already completed this test.";
+  startBtn.disabled = true;
+}
 
+function nextRound() {
+  zone.className = 'zone';
+  zone.textContent = 'WAIT';
+  waiting = true;
 
-    function startRound() {
-      box.className = 'box';
-      box.textContent = 'Wait…';
-      waiting = true;
-      const delay = Math.random() * 3000 + 2000;
-      setTimeout(() => {
-        waiting = false;
-        box.classList.add('green');
-        box.textContent = 'CLICK!';
-        startTime = performance.now();
-      }, delay);
-    }
+  setTimeout(() => {
+    if (failed) return;
+    waiting = false;
+    zone.classList.add('green');
+    zone.textContent = 'CLICK!';
+    startTime = performance.now();
+  }, 3000); // fixed wait (not random)
+}
 
-    box.addEventListener('click', () => {
-      if (trial === 0) return;
-      if (waiting) {
-        box.textContent = 'Too early!';
-        startRound();
-        return;
-      }
+zone.onclick = () => {
+  if (trial === 0 || failed) return;
 
-      const reaction = Math.round(performance.now() - startTime);
-      times.push(reaction);
-      trial++;
+  if (waiting) {
+    msg.innerHTML = '❌ Too early. Test failed.';
+    failed = true;
+    localStorage.setItem('reaction_attempt_used', 'true');
+    zone.className = 'zone locked';
+    zone.textContent = 'FAILED';
+    return;
+  }
 
-      if (trial <= 3) {
-        box.textContent = `Time ${trial}: ${reaction} ms`;
-        setTimeout(startRound, 800);
-      }
+  const rt = Math.round(performance.now() - startTime);
+  times.push(rt);
+  trial++;
 
-      if (trial > 3) {
-        const avg = Math.round(times.reduce((a,b)=>a+b,0)/times.length);
-        const age = Number(ageInput.value);
-        const group = ageGroup(age);
+  if (trial < 3) {
+    zone.className = 'zone';
+    zone.textContent = `Recorded: ${rt} ms`;
+    setTimeout(nextRound, 1000);
+  } else {
+    const avg = Math.round(times.reduce((a,b)=>a+b,0)/3);
+    zone.className = 'zone locked';
+    zone.textContent = 'DONE ✅';
+    msg.innerHTML = `✅ Finished. Average: <b>${avg} ms</b>`;
 
+    localStorage.setItem('reaction_attempt_used', 'true');
 
-        box.className = 'box';
-        box.textContent = 'Finished ✅';
-        resultsDiv.innerHTML = `
-          <p><b>Age:</b> ${age}</p>
-          <p><b>Age group:</b> ${group}</p>
-          <p><b>Average:</b> ${avg} ms</p>
-          <p><b>✅ Result sent</b></p>
-        `;
+    // ✅ GOOGLE FORM AUTO SUBMIT (FIXED ORDER)
+    const FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLScKZ3o_cXF41pHV_lmPNqsROZ8AhTp_ZXT9UUoX-S0zG1Nkfw/formResponse';
+    const AGE_ENTRY = 'entry.211123322';    // age
+    const AVG_ENTRY = 'entry.186633958';    // reaction time
 
-        const FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLScKZ3o_cXF41pHV_lmPNqsROZ8AhTp_ZXT9UUoX-S0zG1Nkfw/formResponse';
-        const AGE_ENTRY = 'entry.186633958';
-        const AVG_ENTRY = 'entry.211123322';
-        const GROUP_ENTRY = 'entry.267395275'; // replace with real entry for age group
+    const form = document.createElement('form');
+    form.action = FORM_ACTION;
+    form.method = 'POST';
+    form.target = 'hidden';
 
-
-        const form = document.createElement('form');
-        form.action = FORM_ACTION;
-        form.method = 'POST';
-        form.target = 'hidden_iframe';
-
-        [[AGE_ENTRY, age],[AVG_ENTRY, avg],[GROUP_ENTRY, group]].forEach(([n,v])=>{
-          const i=document.createElement('input');i.name=n;i.value=v;form.appendChild(i);
-        });
-        document.body.appendChild(form);
-        form.submit();
-      }
+    [[AGE_ENTRY, ageInput.value],[AVG_ENTRY, avg]].forEach(([n,v])=>{
+      const i=document.createElement('input'); i.name=n; i.value=v; form.appendChild(i);
     });
 
-    startBtn.addEventListener('click', () => {
-      const age = Number(ageInput.value);
-      if (!age || age < 1 || age > 120) {
-        alert('Enter valid age'); return;
-      }
-      startBtn.disabled = true;
-      ageInput.disabled = true;
-      trial = 1;
-      times = [];
-      resultsDiv.innerHTML = '';
-      startRound();
-    });
-  </script>
-  <iframe name="hidden_iframe" style="display:none"></iframe>
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+
+startBtn.onclick = () => {
+  const age = Number(ageInput.value);
+  if (!age || age<1 || age>120) { alert('Enter a valid age'); return; }
+
+  startBtn.disabled = true;
+  ageInput.disabled = true;
+  trial = 1;
+  msg.textContent = 'Get ready…';
+  nextRound();
+}
+</script>
+<iframe name="hidden" style="display:none"></iframe>
 </body>
+</html>
